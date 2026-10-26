@@ -22,13 +22,21 @@ jobs:
           cache-dependency-path: 'GIS_Raster/requirements.txt'
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
+      - name: Python dependency smoke test
+        run: python windows_launcher.py --self-test
       - name: Unit tests
         run: python -m unittest discover -p "test_*.py" -v
-      - name: Compile prototype
-        run: python -m PyInstaller --noconfirm --clean --onedir --windowed --name COTA-NET-GIS --collect-all rasterio integrated_viewer.py
-      - name: Upload portable test build
+      - name: Compile prototype with bundled DLL hook
+        run: python -m PyInstaller --noconfirm --clean --onedir --windowed --name COTA-NET-GIS --collect-all rasterio --collect-all pyproj --collect-all numpy --runtime-hook windows_runtime_hook.py windows_launcher.py
+      - name: Test compiled exe can load Rasterio and coordinate transforms
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path "dist/COTA-NET-GIS/COTA-NET-GIS.exe").Path
+          $proc = Start-Process -FilePath $exe -ArgumentList "--self-test" -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { throw "EXE self-test failed, exit code $($proc.ExitCode)" }
+      - name: Upload tested portable build
         uses: actions/upload-artifact@v4
         with:
-          name: COTA-NET-GIS-Windows-prototype
+          name: COTA-NET-GIS-Windows-DLL-fix
           path: GIS_Raster/dist/COTA-NET-GIS/
           retention-days: 14
